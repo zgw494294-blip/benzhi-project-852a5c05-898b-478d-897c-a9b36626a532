@@ -22,21 +22,23 @@ type EventRecord struct {
 }
 
 type frame struct {
-	SchemaVersion   int            `json:"schemaVersion"`
-	Sequence        uint64         `json:"sequence"`
-	PreviousDigest  string         `json:"previousDigest"`
-	CaseID          string         `json:"caseID"`
-	ExpectedVersion uint64         `json:"expectedVersion"`
-	IdempotencyKey  string         `json:"idempotencyKey"`
-	Events          []domain.Event `json:"events"`
-	Checksum        string         `json:"checksum"`
+	SchemaVersion   int             `json:"schemaVersion"`
+	Sequence        uint64          `json:"sequence"`
+	PreviousDigest  string          `json:"previousDigest"`
+	CaseID          string          `json:"caseID"`
+	ExpectedVersion uint64          `json:"expectedVersion"`
+	IdempotencyKey  string          `json:"idempotencyKey"`
+	Fingerprint     string          `json:"fingerprint,omitempty"`
+	Events          []domain.Event  `json:"events"`
+	Checksum        string          `json:"checksum"`
 }
 
 type idempotencyResult struct {
-	CaseID   string            `json:"caseID"`
-	Version  uint64            `json:"version"`
-	Sequence uint64            `json:"sequence"`
-	Status   domain.CaseStatus `json:"status"`
+	CaseID      string            `json:"caseID"`
+	Version     uint64            `json:"version"`
+	Sequence    uint64            `json:"sequence"`
+	Status      domain.CaseStatus `json:"status"`
+	Fingerprint string            `json:"fingerprint,omitempty"`
 }
 
 type snapshot struct {

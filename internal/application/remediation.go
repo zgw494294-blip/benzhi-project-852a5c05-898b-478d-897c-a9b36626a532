@@ -5,7 +5,11 @@ import "heritage-tree-relocation-clearance/internal/domain"
 func (s *Service) SubmitRemediation(command SubmitRemediationCommand) (MutationResult, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext); err != nil {
+	fingerprint, err := fingerprintPayload("SubmitRemediation", command.CaseID, command.WriteContext.ExpectedVersion, submitRemediationCommandPayload{FindingID: command.FindingID, Evidence: command.Evidence, SubmittedBy: command.SubmittedBy})
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext, fingerprint); err != nil {
 		return MutationResult{}, err
 	} else if ok {
 		return prior, nil
@@ -18,13 +22,23 @@ func (s *Service) SubmitRemediation(command SubmitRemediationCommand) (MutationR
 	if err != nil {
 		return MutationResult{}, err
 	}
-	return s.commit(caseState, command.WriteContext, events)
+	return s.commit(caseState, command.WriteContext, fingerprint, events)
+}
+
+type submitRemediationCommandPayload struct {
+	FindingID   string   `json:"findingID"`
+	Evidence    []string `json:"evidence"`
+	SubmittedBy string   `json:"submittedBy"`
 }
 
 func (s *Service) ReviewRemediation(command ReviewRemediationCommand) (MutationResult, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext); err != nil {
+	fingerprint, err := fingerprintPayload("ReviewRemediation", command.CaseID, command.WriteContext.ExpectedVersion, reviewRemediationCommandPayload{FindingID: command.FindingID, ReviewedBy: command.ReviewedBy, Decision: command.Decision})
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext, fingerprint); err != nil {
 		return MutationResult{}, err
 	} else if ok {
 		return prior, nil
@@ -37,5 +51,11 @@ func (s *Service) ReviewRemediation(command ReviewRemediationCommand) (MutationR
 	if err != nil {
 		return MutationResult{}, err
 	}
-	return s.commit(caseState, command.WriteContext, events)
+	return s.commit(caseState, command.WriteContext, fingerprint, events)
+}
+
+type reviewRemediationCommandPayload struct {
+	FindingID   string                `json:"findingID"`
+	ReviewedBy  string                `json:"reviewedBy"`
+	Decision    domain.ReviewDecision `json:"decision"`
 }

@@ -5,7 +5,13 @@ import "heritage-tree-relocation-clearance/internal/domain"
 func (s *Service) RecordSurvey(command RecordSurveyCommand) (MutationResult, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext); err != nil {
+	fingerprint, err := fingerprintPayload("RecordSurvey", command.CaseID, command.WriteContext.ExpectedVersion, surveyCommandPayload{
+		SurveyID: command.SurveyID, Sector: command.Sector, ProbeDepthCM: command.ProbeDepthCM, CriticalRootCount: command.CriticalRootCount, ExposedRootRatio: command.ExposedRootRatio, SoilMoisturePercent: command.SoilMoisturePercent, EvidenceRefs: command.EvidenceRefs, RecordedBy: command.RecordedBy,
+	})
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext, fingerprint); err != nil {
 		return MutationResult{}, err
 	} else if ok {
 		return prior, nil
@@ -21,5 +27,16 @@ func (s *Service) RecordSurvey(command RecordSurveyCommand) (MutationResult, err
 	if err != nil {
 		return MutationResult{}, err
 	}
-	return s.commit(caseState, command.WriteContext, events)
+	return s.commit(caseState, command.WriteContext, fingerprint, events)
+}
+
+type surveyCommandPayload struct {
+	SurveyID            string   `json:"surveyID,omitempty"`
+	Sector              string   `json:"sector"`
+	ProbeDepthCM        float64  `json:"probeDepthCM"`
+	CriticalRootCount   int      `json:"criticalRootCount"`
+	ExposedRootRatio    float64  `json:"exposedRootRatio"`
+	SoilMoisturePercent float64  `json:"soilMoisturePercent"`
+	EvidenceRefs        []string `json:"evidenceRefs"`
+	RecordedBy          string   `json:"recordedBy"`
 }

@@ -14,6 +14,12 @@ import (
 const maxFrameBytes = 8 << 20
 
 func (s *Store) Append(caseID string, expectedVersion uint64, idempotencyKey string, events []domain.Event) (AppendResult, error) {
+	return s.AppendWithFingerprint(caseID, expectedVersion, idempotencyKey, "", events)
+}
+
+// AppendWithFingerprint 在 Append 基础上允许调用方提供请求指纹，用于检测同一幂等键下的不同载荷。
+// 空指纹表示不参与载荷比对（保持向后兼容）。
+func (s *Store) AppendWithFingerprint(caseID string, expectedVersion uint64, idempotencyKey, fingerprint string, events []domain.Event) (AppendResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -30,6 +36,9 @@ func (s *Store) Append(caseID string, expectedVersion uint64, idempotencyKey str
 	}
 	idemKey := caseID + "\x00" + idempotencyKey
 	if result, ok := s.idempotency[idemKey]; ok {
+		if fingerprint != "" && result.Fingerprint != "" && result.Fingerprint != fingerprint {
+			return AppendResult{}, &IdempotencyPayloadConflictError{Key: idempotencyKey}
+		}
 		return AppendResult{Version: result.Version, Sequence: result.Sequence, Status: result.Status, Idempotent: true}, nil
 	}
 	currentVersion := uint64(0)
@@ -56,7 +65,7 @@ func (s *Store) Append(caseID string, expectedVersion uint64, idempotencyKey str
 			return AppendResult{}, fmt.Errorf("应用待提交事件: %w", err)
 		}
 	}
-	f := frame{SchemaVersion: schemaVersion, Sequence: s.sequence + 1, PreviousDigest: s.lastDigest, CaseID: caseID, ExpectedVersion: expectedVersion, IdempotencyKey: idempotencyKey, Events: events}
+	f := frame{SchemaVersion: schemaVersion, Sequence: s.sequence + 1, PreviousDigest: s.lastDigest, CaseID: caseID, ExpectedVersion: expectedVersion, IdempotencyKey: idempotencyKey, Fingerprint: fingerprint, Events: events}
 	if current := s.cases[caseID]; current != nil && current.Credential == nil && candidate.Credential != nil {
 		if candidate.Credential.EventSequence != f.Sequence {
 			return AppendResult{}, errors.New("凭据事件边界与事件帧序号不一致")
@@ -85,7 +94,7 @@ func (s *Store) Append(caseID string, expectedVersion uint64, idempotencyKey str
 	}
 	s.sequence, s.lastDigest = f.Sequence, frameDigest(payload)
 	s.cases[caseID] = candidate
-	result := idempotencyResult{CaseID: caseID, Version: candidate.Version, Sequence: f.Sequence, Status: candidate.Status}
+	result := idempotencyResult{CaseID: caseID, Version: candidate.Version, Sequence: f.Sequence, Status: candidate.Status, Fingerprint: fingerprint}
 	s.idempotency[idemKey] = result
 	s.addRecords(f)
 	if candidate.Credential != nil {

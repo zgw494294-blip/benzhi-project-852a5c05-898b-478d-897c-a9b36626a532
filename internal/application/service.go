@@ -2,7 +2,9 @@ package application
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -14,6 +16,7 @@ import (
 
 type Store interface {
 	Append(caseID string, expectedVersion uint64, idempotencyKey string, events []domain.Event) (eventstore.AppendResult, error)
+	AppendWithFingerprint(caseID string, expectedVersion uint64, idempotencyKey, fingerprint string, events []domain.Event) (eventstore.AppendResult, error)
 	LoadCase(caseID string) (*domain.RelocationCase, error)
 	CaseExists(caseID string) bool
 	AuditTrail(caseID string) ([]eventstore.EventRecord, error)
@@ -21,6 +24,7 @@ type Store interface {
 	LastSequence() uint64
 	PeekNextSerial() uint64
 	LookupIdempotency(caseID, idempotencyKey string) (eventstore.AppendResult, bool)
+	LookupIdempotencyFingerprint(caseID, idempotencyKey string) (string, bool)
 }
 
 type Service struct {
@@ -69,9 +73,25 @@ func (s *Service) loadForWrite(caseID string, context WriteContext) (*domain.Rel
 	return caseState, nil
 }
 
-func (s *Service) priorMutation(caseID string, context WriteContext) (MutationResult, bool, error) {
+func fingerprintPayload(operation string, caseID string, expectedVersion uint64, payload any) (string, error) {
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("计算幂等指纹: %w", err)
+	}
+	sum := sha256.Sum256(append([]byte(operation+"\x00"+caseID+"\x00"+fmt.Sprintf("%d\x00", expectedVersion)), b...))
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func (s *Service) priorMutation(caseID string, context WriteContext, fingerprint string) (MutationResult, bool, error) {
 	if err := validateWriteContext(context); err != nil {
 		return MutationResult{}, false, err
+	}
+	storedFingerprint, ok := s.store.LookupIdempotencyFingerprint(caseID, context.IdempotencyKey)
+	if !ok {
+		return MutationResult{}, false, nil
+	}
+	if storedFingerprint != fingerprint {
+		return MutationResult{}, false, &eventstore.IdempotencyPayloadConflictError{Key: context.IdempotencyKey}
 	}
 	result, ok := s.store.LookupIdempotency(caseID, context.IdempotencyKey)
 	if !ok {
@@ -80,8 +100,8 @@ func (s *Service) priorMutation(caseID string, context WriteContext) (MutationRe
 	return MutationResult{CaseID: caseID, Version: result.Version, Sequence: result.Sequence, Status: result.Status, Idempotent: true}, true, nil
 }
 
-func (s *Service) commit(caseState *domain.RelocationCase, context WriteContext, events []domain.Event) (MutationResult, error) {
-	result, err := s.store.Append(caseState.CaseID, context.ExpectedVersion, context.IdempotencyKey, events)
+func (s *Service) commit(caseState *domain.RelocationCase, context WriteContext, fingerprint string, events []domain.Event) (MutationResult, error) {
+	result, err := s.store.AppendWithFingerprint(caseState.CaseID, context.ExpectedVersion, context.IdempotencyKey, fingerprint, events)
 	if err != nil {
 		return MutationResult{}, err
 	}
@@ -94,5 +114,9 @@ func IsVersionConflict(err error) bool {
 }
 func IsIdempotencyConflict(err error) bool {
 	var target *eventstore.IdempotencyConflictError
-	return errors.As(err, &target)
+	if errors.As(err, &target) {
+		return true
+	}
+	var payload *eventstore.IdempotencyPayloadConflictError
+	return errors.As(err, &payload)
 }

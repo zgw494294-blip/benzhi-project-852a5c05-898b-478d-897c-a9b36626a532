@@ -61,3 +61,13 @@ func (s *Store) LookupIdempotency(caseID, idempotencyKey string) (AppendResult, 
 	}
 	return AppendResult{Version: result.Version, Sequence: result.Sequence, Status: result.Status, Idempotent: true}, true
 }
+
+func (s *Store) LookupIdempotencyFingerprint(caseID, idempotencyKey string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result, ok := s.idempotency[caseID+"\x00"+idempotencyKey]
+	if !ok {
+		return "", false
+	}
+	return result.Fingerprint, true
+}

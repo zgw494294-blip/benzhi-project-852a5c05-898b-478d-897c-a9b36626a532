@@ -12,7 +12,13 @@ import (
 func (s *Service) VerifySite(command VerifySiteCommand) (MutationResult, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext); err != nil {
+	fingerprint, err := fingerprintPayload("VerifySite", command.CaseID, command.WriteContext.ExpectedVersion, verifySiteCommandPayload{
+		WorkZoneReady: command.WorkZoneReady, MachineryAccessReady: command.MachineryAccessReady, TemporaryCareReady: command.TemporaryCareReady, WeatherWindowSafe: command.WeatherWindowSafe, Notes: command.Notes, VerifiedBy: command.VerifiedBy,
+	})
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext, fingerprint); err != nil {
 		return MutationResult{}, err
 	} else if ok {
 		return prior, nil
@@ -25,13 +31,26 @@ func (s *Service) VerifySite(command VerifySiteCommand) (MutationResult, error) 
 	if err != nil {
 		return MutationResult{}, err
 	}
-	return s.commit(caseState, command.WriteContext, events)
+	return s.commit(caseState, command.WriteContext, fingerprint, events)
+}
+
+type verifySiteCommandPayload struct {
+	WorkZoneReady        bool   `json:"workZoneReady"`
+	MachineryAccessReady bool   `json:"machineryAccessReady"`
+	TemporaryCareReady   bool   `json:"temporaryCareReady"`
+	WeatherWindowSafe    bool   `json:"weatherWindowSafe"`
+	Notes                string `json:"notes"`
+	VerifiedBy           string `json:"verifiedBy"`
 }
 
 func (s *Service) IssueCredential(command IssueCredentialCommand) (domain.ClearanceCredential, MutationResult, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext); err != nil {
+	fingerprint, err := fingerprintPayload("IssueCredential", command.CaseID, command.WriteContext.ExpectedVersion, issueCredentialCommandPayload{IssuedBy: command.IssuedBy})
+	if err != nil {
+		return domain.ClearanceCredential{}, MutationResult{}, err
+	}
+	if prior, ok, err := s.priorMutation(command.CaseID, command.WriteContext, fingerprint); err != nil {
 		return domain.ClearanceCredential{}, MutationResult{}, err
 	} else if ok {
 		caseState, loadErr := s.store.LoadCase(command.CaseID)
@@ -68,10 +87,14 @@ func (s *Service) IssueCredential(command IssueCredentialCommand) (domain.Cleara
 	if err != nil {
 		return domain.ClearanceCredential{}, MutationResult{}, err
 	}
-	result, err := s.commit(caseState, command.WriteContext, events)
+	result, err := s.commit(caseState, command.WriteContext, fingerprint, events)
 	if err != nil {
 		return domain.ClearanceCredential{}, MutationResult{}, err
 	}
 	credential, err := s.store.FindCredential(credentialID)
 	return credential, result, err
+}
+
+type issueCredentialCommandPayload struct {
+	IssuedBy string `json:"issuedBy"`
 }
