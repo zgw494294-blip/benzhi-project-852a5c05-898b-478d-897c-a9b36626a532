@@ -50,18 +50,20 @@ type snapshot struct {
 }
 
 type Store struct {
-	mu           sync.RWMutex
-	dir          string
-	logPath      string
-	snapshotPath string
-	sequence     uint64
-	lastDigest   string
-	nextSerial   uint64
-	cases        map[string]*domain.RelocationCase
-	events       map[string][]EventRecord
-	credentials  map[string]domain.ClearanceCredential
-	idempotency  map[string]idempotencyResult
-	closed       bool
+	mu                sync.RWMutex
+	dir               string
+	logPath           string
+	snapshotPath      string
+	sequence          uint64
+	lastDigest        string
+	nextSerial        uint64
+	cases             map[string]*domain.RelocationCase
+	events            map[string][]EventRecord
+	credentials       map[string]domain.ClearanceCredential
+	idempotency       map[string]idempotencyResult
+	closed            bool
+	snapshotDegraded  bool
+	snapshotLastError error
 }
 
 type AppendResult struct {

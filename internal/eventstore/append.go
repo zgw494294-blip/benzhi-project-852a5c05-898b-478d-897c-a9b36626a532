@@ -95,7 +95,14 @@ func (s *Store) Append(caseID string, expectedVersion uint64, idempotencyKey str
 		}
 	}
 	if err := s.writeSnapshotLocked(); err != nil {
-		return AppendResult{}, fmt.Errorf("事件已提交但快照更新失败: %w", err)
+		// 事件日志已持久化为不可变事实来源；内存投影与日志一致。
+		// 投影快照只是恢复阶段的加速点，Open 时会重放日志并重建快照，
+		// 因此其失败只能作为可恢复降级状态，不得否定已完成的提交。
+		s.snapshotDegraded = true
+		s.snapshotLastError = err
+	} else {
+		s.snapshotDegraded = false
+		s.snapshotLastError = nil
 	}
 	return AppendResult{Version: candidate.Version, Sequence: f.Sequence, Status: candidate.Status}, nil
 }
