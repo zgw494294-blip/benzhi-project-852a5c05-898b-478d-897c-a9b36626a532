@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -21,9 +22,12 @@ func respondError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, e
 	status, code, message := http.StatusInternalServerError, "INTERNAL_ERROR", "服务处理请求失败"
 	var protocol *protocolError
 	var business *domain.Error
-	if errors.As(err, &protocol) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		status, code, message = 499, "CLIENT_CLOSED", "客户端已取消请求"
+	case errors.As(err, &protocol):
 		status, code, message = protocol.Status, protocol.Code, protocol.Message
-	} else if errors.As(err, &business) {
+	case errors.As(err, &business):
 		code, message = business.Code, business.Message
 		switch business.Code {
 		case "NOT_FOUND":
@@ -33,9 +37,9 @@ func respondError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, e
 		default:
 			status = http.StatusUnprocessableEntity
 		}
-	} else if application.IsVersionConflict(err) || application.IsIdempotencyConflict(err) {
+	case application.IsVersionConflict(err) || application.IsIdempotencyConflict(err):
 		status, code, message = http.StatusConflict, "CONCURRENCY_CONFLICT", err.Error()
-	} else {
+	default:
 		logger.Error("请求处理失败", "requestID", requestIDFrom(r.Context()), "error", err)
 	}
 	response := errorResponse{}

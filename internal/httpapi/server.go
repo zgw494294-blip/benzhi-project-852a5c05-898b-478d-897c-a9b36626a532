@@ -65,6 +65,10 @@ func (a *API) middleware(next http.Handler) http.Handler {
 			}
 			a.logger.Debug("HTTP 请求完成", "requestID", requestID, "method", r.Method, "path", r.URL.Path, "elapsed", time.Since(started))
 		}()
+		if err := ctx.Err(); err != nil {
+			respondError(w, r.WithContext(ctx), a.logger, err)
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
