@@ -2,6 +2,7 @@ package eventstore
 
 import (
 	"encoding/json"
+	"os"
 	"sync"
 	"time"
 
@@ -54,6 +55,7 @@ type Store struct {
 	dir          string
 	logPath      string
 	snapshotPath string
+	lockFile     *os.File
 	sequence     uint64
 	lastDigest   string
 	nextSerial   uint64
