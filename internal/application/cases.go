@@ -1,6 +1,9 @@
 package application
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+
 	"heritage-tree-relocation-clearance/internal/domain"
 )
 
@@ -8,7 +11,7 @@ func (s *Service) CreateCase(command CreateCaseCommand) (MutationResult, error) 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if command.CaseID == "" {
-		command.CaseID = s.idGenerator("CASE")
+		command.CaseID = deterministicCaseID(command.IdempotencyKey)
 	}
 	context := WriteContext{ExpectedVersion: 0, IdempotencyKey: command.IdempotencyKey}
 	if err := validateWriteContext(context); err != nil {
@@ -25,6 +28,13 @@ func (s *Service) CreateCase(command CreateCaseCommand) (MutationResult, error) 
 	empty := domain.NewCaseState()
 	empty.CaseID = command.CaseID
 	return s.commit(empty, context, events)
+}
+
+// deterministicCaseID 在创建请求省略 caseID 时从幂等键派生稳定案卷编号，
+// 使使用相同 idempotencyKey 的重试落到同一案卷，从而复用既有幂等机制返回首次结果。
+func deterministicCaseID(idempotencyKey string) string {
+	sum := sha256.Sum256([]byte(idempotencyKey))
+	return "CASE-" + hex.EncodeToString(sum[:12])
 }
 
 func (s *Service) GetCase(caseID string) (*domain.RelocationCase, error) {
