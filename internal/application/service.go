@@ -28,8 +28,6 @@ type Service struct {
 	clock       func() time.Time
 	idGenerator func(prefix string) string
 	writeMu     sync.Mutex
-	auditMu     sync.RWMutex
-	auditCache  map[string]AuditView
 }
 
 func NewService(store Store) *Service {
@@ -37,7 +35,6 @@ func NewService(store Store) *Service {
 		store:       store,
 		clock:       func() time.Time { return time.Now().UTC() },
 		idGenerator: randomID,
-		auditCache:  make(map[string]AuditView),
 	}
 }
 
