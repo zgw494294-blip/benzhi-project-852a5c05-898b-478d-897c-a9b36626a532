@@ -116,12 +116,5 @@ func (s *Store) applyRecoveredFrame(f frame) error {
 	}
 	s.cases[f.CaseID] = candidate
 	s.idempotency[f.CaseID+"\x00"+f.IdempotencyKey] = idempotencyResult{CaseID: f.CaseID, Version: candidate.Version, Sequence: f.Sequence, Status: candidate.Status}
-	s.addRecords(f)
-	if candidate.Credential != nil {
-		s.credentials[candidate.Credential.CredentialID] = *candidate.Credential
-		if candidate.Credential.SerialNumber >= s.nextSerial {
-			s.nextSerial = candidate.Credential.SerialNumber + 1
-		}
-	}
 	return nil
 }
