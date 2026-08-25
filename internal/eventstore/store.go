@@ -39,13 +39,18 @@ func cloneCase(source *domain.RelocationCase) (*domain.RelocationCase, error) {
 	if source == nil {
 		return nil, nil
 	}
-	b, err := jsonMarshal(source)
-	if err != nil {
-		return nil, err
+	target := *source
+	target.Surveys = make(map[string]domain.RootSurvey, len(source.Surveys))
+	for sector, survey := range source.Surveys {
+		target.Surveys[sector] = survey
 	}
-	var target domain.RelocationCase
-	if err := jsonUnmarshal(b, &target); err != nil {
-		return nil, err
+	target.Plans = make(map[int]domain.ProtectionPlan, len(source.Plans))
+	for revision, plan := range source.Plans {
+		target.Plans[revision] = plan
+	}
+	target.Findings = make(map[string]domain.RiskFinding, len(source.Findings))
+	for findingID, finding := range source.Findings {
+		target.Findings[findingID] = finding
 	}
 	return &target, nil
 }
