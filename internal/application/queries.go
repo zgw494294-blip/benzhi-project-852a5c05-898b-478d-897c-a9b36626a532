@@ -36,13 +36,31 @@ func (s *Service) GetAuditByCredential(credentialID string) (AuditView, error) {
 }
 
 func (s *Service) GetAudit(caseID string) (AuditView, error) {
-	caseState, err := s.store.LoadCase(caseID)
-	if err != nil {
-		return AuditView{}, err
-	}
-	records, err := s.store.AuditTrail(caseID)
-	if err != nil {
-		return AuditView{}, err
+	var caseState *domain.RelocationCase
+	var records []eventstore.EventRecord
+	var queryErr error
+	caseDone := make(chan struct{})
+	auditDone := make(chan struct{})
+	go func() {
+		var err error
+		caseState, err = s.store.LoadCase(caseID)
+		if err != nil {
+			queryErr = err
+		}
+		close(caseDone)
+	}()
+	go func() {
+		var err error
+		records, err = s.store.AuditTrail(caseID)
+		if err != nil {
+			queryErr = err
+		}
+		close(auditDone)
+	}()
+	<-caseDone
+	<-auditDone
+	if queryErr != nil {
+		return AuditView{}, queryErr
 	}
 	items := make([]AuditItem, 0, len(records))
 	for _, record := range records {
