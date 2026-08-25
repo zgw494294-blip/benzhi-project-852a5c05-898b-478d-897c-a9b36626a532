@@ -36,6 +36,13 @@ func (s *Service) GetAuditByCredential(credentialID string) (AuditView, error) {
 }
 
 func (s *Service) GetAudit(caseID string) (AuditView, error) {
+	s.auditMu.RLock()
+	cached, ok := s.auditCache[caseID]
+	s.auditMu.RUnlock()
+	if ok {
+		return cached, nil
+	}
+
 	caseState, err := s.store.LoadCase(caseID)
 	if err != nil {
 		return AuditView{}, err
@@ -48,7 +55,11 @@ func (s *Service) GetAudit(caseID string) (AuditView, error) {
 	for _, record := range records {
 		items = append(items, auditItem(record))
 	}
-	return AuditView{Case: caseState, Credential: caseState.Credential, Timeline: items}, nil
+	view := AuditView{Case: caseState, Credential: caseState.Credential, Timeline: items}
+	s.auditMu.Lock()
+	s.auditCache[caseID] = view
+	s.auditMu.Unlock()
+	return view, nil
 }
 
 func auditItem(record eventstore.EventRecord) AuditItem {
