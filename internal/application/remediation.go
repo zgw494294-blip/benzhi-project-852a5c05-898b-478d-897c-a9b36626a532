@@ -1,6 +1,10 @@
 package application
 
-import "heritage-tree-relocation-clearance/internal/domain"
+import (
+	"fmt"
+
+	"heritage-tree-relocation-clearance/internal/domain"
+)
 
 func (s *Service) SubmitRemediation(command SubmitRemediationCommand) (MutationResult, error) {
 	s.writeMu.Lock()
@@ -12,7 +16,7 @@ func (s *Service) SubmitRemediation(command SubmitRemediationCommand) (MutationR
 	}
 	caseState, err := s.loadForWrite(command.CaseID, command.WriteContext)
 	if err != nil {
-		return MutationResult{}, err
+		return MutationResult{}, fmt.Errorf("加载整改案卷失败: %v", err)
 	}
 	events, err := caseState.SubmitRemediation(domain.SubmitRemediationInput{FindingID: command.FindingID, Evidence: command.Evidence, SubmittedBy: command.SubmittedBy, Now: s.clock()})
 	if err != nil {
@@ -31,7 +35,7 @@ func (s *Service) ReviewRemediation(command ReviewRemediationCommand) (MutationR
 	}
 	caseState, err := s.loadForWrite(command.CaseID, command.WriteContext)
 	if err != nil {
-		return MutationResult{}, err
+		return MutationResult{}, fmt.Errorf("加载整改复核案卷失败: %v", err)
 	}
 	events, err := caseState.ReviewRemediation(domain.ReviewRemediationInput{FindingID: command.FindingID, ReviewedBy: command.ReviewedBy, Decision: command.Decision, Now: s.clock()})
 	if err != nil {

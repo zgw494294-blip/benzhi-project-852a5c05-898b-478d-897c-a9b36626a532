@@ -1,6 +1,10 @@
 package application
 
-import "heritage-tree-relocation-clearance/internal/domain"
+import (
+	"fmt"
+
+	"heritage-tree-relocation-clearance/internal/domain"
+)
 
 func (s *Service) RecordSurvey(command RecordSurveyCommand) (MutationResult, error) {
 	s.writeMu.Lock()
@@ -12,7 +16,7 @@ func (s *Service) RecordSurvey(command RecordSurveyCommand) (MutationResult, err
 	}
 	caseState, err := s.loadForWrite(command.CaseID, command.WriteContext)
 	if err != nil {
-		return MutationResult{}, err
+		return MutationResult{}, fmt.Errorf("加载勘查案卷失败: %v", err)
 	}
 	if command.SurveyID == "" {
 		command.SurveyID = s.idGenerator("SURVEY")

@@ -1,6 +1,10 @@
 package application
 
-import "heritage-tree-relocation-clearance/internal/domain"
+import (
+	"fmt"
+
+	"heritage-tree-relocation-clearance/internal/domain"
+)
 
 func (s *Service) RevisePlan(command RevisePlanCommand) (MutationResult, error) {
 	s.writeMu.Lock()
@@ -12,7 +16,7 @@ func (s *Service) RevisePlan(command RevisePlanCommand) (MutationResult, error) 
 	}
 	caseState, err := s.loadForWrite(command.CaseID, command.WriteContext)
 	if err != nil {
-		return MutationResult{}, err
+		return MutationResult{}, fmt.Errorf("加载方案案卷失败: %v", err)
 	}
 	if command.PlanID == "" {
 		command.PlanID = s.idGenerator("PLAN")
@@ -34,7 +38,7 @@ func (s *Service) ReviewRisk(command ReviewRiskCommand) (MutationResult, error) 
 	}
 	caseState, err := s.loadForWrite(command.CaseID, command.WriteContext)
 	if err != nil {
-		return MutationResult{}, err
+		return MutationResult{}, fmt.Errorf("加载风险审查案卷失败: %v", err)
 	}
 	events, err := caseState.ReviewRisk(domain.ReviewRiskInput{Reviewer: command.ReviewedBy, Now: s.clock()})
 	if err != nil {

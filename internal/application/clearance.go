@@ -19,7 +19,7 @@ func (s *Service) VerifySite(command VerifySiteCommand) (MutationResult, error) 
 	}
 	caseState, err := s.loadForWrite(command.CaseID, command.WriteContext)
 	if err != nil {
-		return MutationResult{}, err
+		return MutationResult{}, fmt.Errorf("加载现场核验案卷失败: %v", err)
 	}
 	events, err := caseState.VerifySite(domain.VerifySiteInput{WorkZoneReady: command.WorkZoneReady, MachineryAccessReady: command.MachineryAccessReady, TemporaryCareReady: command.TemporaryCareReady, WeatherWindowSafe: command.WeatherWindowSafe, Notes: command.Notes, VerifiedBy: command.VerifiedBy, Now: s.clock()})
 	if err != nil {
@@ -45,7 +45,7 @@ func (s *Service) IssueCredential(command IssueCredentialCommand) (domain.Cleara
 	}
 	caseState, err := s.loadForWrite(command.CaseID, command.WriteContext)
 	if err != nil {
-		return domain.ClearanceCredential{}, MutationResult{}, err
+		return domain.ClearanceCredential{}, MutationResult{}, fmt.Errorf("加载凭据签发案卷失败: %v", err)
 	}
 	serial := s.store.PeekNextSerial()
 	sequence := s.store.LastSequence() + 1
